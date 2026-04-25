@@ -1,17 +1,28 @@
-name: Docker Build
+name: Docker Build and Deploy
 
 on:
   push:
     branches: [ "main" ]
 
 jobs:
-  docker:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Login to Azure Container Registry
+      run: echo "${{ secrets.ACR_PASSWORD }}" | docker login acrdevopscloudlab.azurecr.io -u "${{ secrets.ACR_USERNAME }}" --password-stdin
+
     - name: Build Docker image
-      run: |
-        docker build -t cloudlab-api ./src/CloudLab.Api
+      run: docker build -t acrdevopscloudlab.azurecr.io/cloudlab-api:${{ github.sha }} ./src/CloudLab.Api
+
+    - name: Push Docker image
+      run: docker push acrdevopscloudlab.azurecr.io/cloudlab-api:${{ github.sha }}
+
+    - name: Update Azure Web App container
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+        images: acrdevopscloudlab.azurecr.io/cloudlab-api:${{ github.sha }}
