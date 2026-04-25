@@ -12,18 +12,33 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # Login a ACR
     - name: Login to Azure Container Registry
       run: echo "${{ secrets.ACR_PASSWORD }}" | docker login acrdevopscloudlab.azurecr.io -u "${{ secrets.ACR_USERNAME }}" --password-stdin
 
+    # Build imagen Docker
     - name: Build Docker image
       run: docker build -t acrdevopscloudlab.azurecr.io/cloudlab-api:${{ github.sha }} ./src/CloudLab.Api
 
+    # Push a ACR
     - name: Push Docker image
       run: docker push acrdevopscloudlab.azurecr.io/cloudlab-api:${{ github.sha }}
 
-    - name: Update Azure Web App container
-      uses: azure/webapps-deploy@v3
+    # Login en Azure
+    - name: Azure Login
+      uses: azure/login@v2
       with:
-        app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        images: acrdevopscloudlab.azurecr.io/cloudlab-api:${{ github.sha }}
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    # Deploy en App Service
+    - name: Deploy to Azure Web App
+      run: |
+        az webapp config container set \
+          --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+          --resource-group rg-devops-cloud-lab \
+          --docker-custom-image-name acrdevopscloudlab.azurecr.io/cloudlab-api:${{ github.sha }} \
+          --docker-registry-server-url https://acrdevopscloudlab.azurecr.io
+
+        az webapp restart \
+          --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+          --resource-group rg-devops-cloud-lab
